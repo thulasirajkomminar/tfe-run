@@ -1,0 +1,23 @@
+module github.com/thulasirajkomminar/tfe-run
+
+go 1.26.0
+
+require (
+	github.com/hashicorp/go-tfe v1.101.0
+	github.com/sirupsen/logrus v1.9.4
+	github.com/spf13/cobra v1.10.2
+)
+
+require (
+	github.com/google/go-querystring v1.2.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+	github.com/hashicorp/go-slug v0.16.8 // indirect
+	github.com/hashicorp/go-version v1.8.0 // indirect
+	github.com/hashicorp/jsonapi v1.4.3-0.20250220162346-81a76b606f3e // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
+)
