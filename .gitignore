@@ -27,6 +27,11 @@ go.work.sum
 # env file
 .env
 
+# Binary
+tfe-run
+
 # Editor/IDE
 # .idea/
 # .vscode/
+
+.task

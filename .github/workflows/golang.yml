@@ -1,0 +1,45 @@
+---
+name: Golang
+"on": pull_request
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  mcvs-golang-action:
+    strategy:
+      matrix:
+        args:
+          - testing-type: lint
+            build-tags: component
+          - testing-type: lint
+            build-tags: e2e
+          - testing-type: lint
+            build-tags: integration
+          - testing-type: format
+    runs-on: ubuntu-24.04
+    env:
+      TASK_X_REMOTE_TASKFILES: 1
+    steps:
+      - uses: actions/checkout@v6
+      - uses: schubergphilis/mcvs-golang-action@v3.9.0
+        with:
+          build-tags: ${{ matrix.args.build-tags }}
+          testing-type: ${{ matrix.args.testing-type }}
+
+  build:
+    name: Build Go
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout functions directory
+        uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+      - name: Go mod tidy
+        run: go mod tidy
+      - name: Verify dependencies
+        run: go mod verify
+      - name: Build the project
+        run: go build -o tfe-run .
