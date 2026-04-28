@@ -23,7 +23,7 @@ jobs:
       TASK_X_REMOTE_TASKFILES: 1
     steps:
       - uses: actions/checkout@v6
-      - uses: schubergphilis/mcvs-golang-action@v3.11.9
+      - uses: schubergphilis/mcvs-golang-action@V3.11.12
         with:
           build-tags: ${{ matrix.args.build-tags }}
           testing-type: ${{ matrix.args.testing-type }}
