@@ -7,56 +7,108 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-tfe/v2"
+	"github.com/hashicorp/go-tfe/v2/api/models"
+	"github.com/hashicorp/go-tfe/v2/api/organizations"
+	abstractions "github.com/microsoft/kiota-abstractions-go"
 	log "github.com/sirupsen/logrus"
 )
 
-// ListByTags retrieves all workspaces matching the given tags.
-func ListByTags(client *tfe.Client, org string, tags []string) ([]*tfe.Workspace, error) {
-	ctx := context.Background()
+// Workspace is a lightweight view of a TFE workspace, decoupling callers from
+// the verbose kiota-generated models.
+type Workspace struct {
+	ID   string
+	Name string
+}
 
-	var allWorkspaces []*tfe.Workspace
+// workspacesBuilder returns the request builder for an organization's workspaces.
+func workspacesBuilder(client *tfe.Client, org string) *organizations.ItemWorkspacesRequestBuilder {
+	return client.API.Organizations().ByOrganization_name(org).Workspaces()
+}
+
+// newWorkspace converts a kiota workspace model into a Workspace.
+func newWorkspace(ws models.Workspacesable) Workspace {
+	w := Workspace{}
+	if ws == nil {
+		return w
+	}
+
+	if id := ws.GetId(); id != nil {
+		w.ID = *id
+	}
+
+	if attrs := ws.GetAttributes(); attrs != nil && attrs.GetName() != nil {
+		w.Name = *attrs.GetName()
+	}
+
+	return w
+}
+
+// ListByTags retrieves all workspaces matching the given tags.
+func ListByTags(client *tfe.Client, org string, tags []string) ([]Workspace, error) {
+	ctx := context.Background()
 
 	tagFilter := strings.Join(tags, ",")
 	log.Infof("Searching for workspaces with tags: %s", tagFilter)
 
-	opts := &tfe.WorkspaceListOptions{
-		Tags: tagFilter,
-		ListOptions: tfe.ListOptions{
-			PageSize: 100,
+	config := &abstractions.RequestConfiguration[organizations.ItemWorkspacesRequestBuilderGetQueryParameters]{
+		QueryParameters: &organizations.ItemWorkspacesRequestBuilderGetQueryParameters{
+			Filtertagged: &tagFilter,
+			Pagesize:     new(int32(100)),
 		},
 	}
 
+	var workspaces []Workspace
+
 	for {
-		workspaces, err := client.Workspaces.List(ctx, org, opts)
+		resp, err := workspacesBuilder(client, org).Get(ctx, config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list workspaces: %w", err)
 		}
 
-		allWorkspaces = append(allWorkspaces, workspaces.Items...)
+		for _, ws := range resp.GetData() {
+			workspaces = append(workspaces, newWorkspace(ws))
+		}
 
-		if workspaces.CurrentPage >= workspaces.TotalPages {
+		next := nextPage(resp)
+		if next == nil {
 			break
 		}
 
-		opts.PageNumber = workspaces.NextPage
+		config.QueryParameters.Pagenumber = next
 	}
 
-	if len(allWorkspaces) == 0 {
+	if len(workspaces) == 0 {
 		return nil, fmt.Errorf("no workspaces found matching tags: %s", tagFilter)
 	}
 
-	log.Infof("Found %d workspace(s) matching tags", len(allWorkspaces))
+	log.Infof("Found %d workspace(s) matching tags", len(workspaces))
 
-	return allWorkspaces, nil
+	return workspaces, nil
+}
+
+// nextPage returns the next page number from a workspace list response, or nil
+// when there are no further pages.
+func nextPage(resp organizations.ItemWorkspacesGetResponseable) *int32 {
+	meta := resp.GetMeta()
+	if meta == nil {
+		return nil
+	}
+
+	pagination := meta.GetPagination()
+	if pagination == nil {
+		return nil
+	}
+
+	return pagination.GetNextPage()
 }
 
 // ListByNames retrieves workspaces by their exact names.
-func ListByNames(client *tfe.Client, org string, names []string) ([]*tfe.Workspace, error) {
+func ListByNames(client *tfe.Client, org string, names []string) ([]Workspace, error) {
 	ctx := context.Background()
 
-	var workspaces []*tfe.Workspace
-
 	log.Infof("Looking up workspaces: %s", strings.Join(names, ", "))
+
+	var workspaces []Workspace
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
@@ -64,13 +116,18 @@ func ListByNames(client *tfe.Client, org string, names []string) ([]*tfe.Workspa
 			continue
 		}
 
-		ws, err := client.Workspaces.Read(ctx, org, name)
+		resp, err := workspacesBuilder(client, org).ByWorkspace_name(name).Get(ctx, nil)
 		if err != nil {
 			log.Warnf("Workspace %q not found or inaccessible: %v", name, err)
 			continue
 		}
 
-		workspaces = append(workspaces, ws)
+		if resp.GetData() == nil {
+			log.Warnf("Workspace %q returned no data", name)
+			continue
+		}
+
+		workspaces = append(workspaces, newWorkspace(resp.GetData()))
 	}
 
 	if len(workspaces) == 0 {

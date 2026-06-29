@@ -104,6 +104,7 @@ linters:
         - centers
         - initializes
         - organization
+        - organizations
         - liter
         - milliliter
         - unauthorized

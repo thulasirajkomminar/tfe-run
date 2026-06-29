@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -122,13 +123,5 @@ func runCmd(cmd *cobra.Command, _ []string) error {
 }
 
 func resolveOrg(org string) string {
-	if org != "" {
-		return org
-	}
-
-	if envOrg := os.Getenv("TFE_ORG"); envOrg != "" {
-		return envOrg
-	}
-
-	return ""
+	return cmp.Or(org, os.Getenv("TFE_ORG"))
 }
