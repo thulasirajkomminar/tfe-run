@@ -14,6 +14,13 @@ import (
 	tfeclient "github.com/thulasirajkomminar/tfe-run/internal/tfe"
 )
 
+type runOptions struct {
+	tags      string
+	workspace string
+	org       string
+	planOnly  string
+}
+
 // Execute is the main entry point for the CLI application.
 func Execute() error {
 	log.SetFormatter(&log.TextFormatter{
@@ -45,13 +52,6 @@ Organization resolution order:
 	rootCmd.Flags().String("planonly", "", "Plan only run: true/false (empty = workspace default)")
 
 	return rootCmd.Execute()
-}
-
-type runOptions struct {
-	tags      string
-	workspace string
-	org       string
-	planOnly  string
 }
 
 func parseFlags(cmd *cobra.Command) (runOptions, error) {
