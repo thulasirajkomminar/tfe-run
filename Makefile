@@ -1,6 +1,5 @@
 .PHONY: pre-commit
 
-# Default target - runs when you type 'make' without arguments.
 pre-commit: lint format build
 
 lint:

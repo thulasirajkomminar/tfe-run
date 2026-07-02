@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +13,13 @@ import (
 
 	tfeclient "github.com/thulasirajkomminar/tfe-run/internal/tfe"
 )
+
+type runOptions struct {
+	tags      string
+	workspace string
+	org       string
+	planOnly  string
+}
 
 // Execute is the main entry point for the CLI application.
 func Execute() error {
@@ -44,13 +52,6 @@ Organization resolution order:
 	rootCmd.Flags().String("planonly", "", "Plan only run: true/false (empty = workspace default)")
 
 	return rootCmd.Execute()
-}
-
-type runOptions struct {
-	tags      string
-	workspace string
-	org       string
-	planOnly  string
 }
 
 func parseFlags(cmd *cobra.Command) (runOptions, error) {
@@ -122,13 +123,5 @@ func runCmd(cmd *cobra.Command, _ []string) error {
 }
 
 func resolveOrg(org string) string {
-	if org != "" {
-		return org
-	}
-
-	if envOrg := os.Getenv("TFE_ORG"); envOrg != "" {
-		return envOrg
-	}
-
-	return ""
+	return cmp.Or(org, os.Getenv("TFE_ORG"))
 }

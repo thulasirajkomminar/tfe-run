@@ -41,6 +41,33 @@ linters:
     - gomoddirectives
     - promlinter
   settings:
+    funcorder:
+      constructor: true
+      struct-method: true
+      alphabetical: true
+    grouper:
+      const-require-single-const: true
+      const-require-grouping: true
+      import-require-grouping: true
+      var-require-single-var: true
+    decorder:
+      dec-order:
+        - const
+        - var
+        - type
+        - func
+      disable-dec-order-check: false
+    tagalign:
+      order:
+        - json
+        - yaml
+        - yml
+        - toml
+        - mapstructure
+        - binding
+        - validate
+        - db
+        - gorm
     depguard:
       rules:
         main:
@@ -104,6 +131,7 @@ linters:
         - centers
         - initializes
         - organization
+        - organizations
         - liter
         - milliliter
         - unauthorized

@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/go-tfe"
+	"github.com/hashicorp/go-tfe/v2"
+	"github.com/hashicorp/go-tfe/v2/api/models"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -28,21 +29,13 @@ func RunByNames(client *tfe.Client, org string, names []string, planOnly *bool) 
 	return triggerRuns(client, workspaces, planOnly)
 }
 
-func triggerRuns(client *tfe.Client, workspaces []*tfe.Workspace, planOnly *bool) error {
+func triggerRuns(client *tfe.Client, workspaces []Workspace, planOnly *bool) error {
 	ctx := context.Background()
 
 	var errCount int
 
 	for _, ws := range workspaces {
 		msg := fmt.Sprintf("Triggered by tfe-run CLI for workspace %s", ws.Name)
-		runOpts := tfe.RunCreateOptions{
-			Workspace: ws,
-			Message:   &msg,
-		}
-
-		if planOnly != nil {
-			runOpts.PlanOnly = planOnly
-		}
 
 		planOnlyLabel := "workspace default"
 		if planOnly != nil {
@@ -54,7 +47,7 @@ func triggerRuns(client *tfe.Client, workspaces []*tfe.Workspace, planOnly *bool
 			"plan_only": planOnlyLabel,
 		}).Info("Triggering run")
 
-		_, err := client.Runs.Create(ctx, runOpts)
+		_, err := client.API.Runs().Post(ctx, newRunEnvelope(ws.ID, msg, planOnly), nil)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"workspace": ws.Name,
@@ -75,4 +68,34 @@ func triggerRuns(client *tfe.Client, workspaces []*tfe.Workspace, planOnly *bool
 	log.Infof("Successfully triggered %d run(s)", len(workspaces))
 
 	return nil
+}
+
+// newRunEnvelope builds the request body for creating a run targeting the given workspace.
+func newRunEnvelope(workspaceID, msg string, planOnly *bool) models.RunsEnvelopeable {
+	attrs := models.NewRuns_attributes()
+	attrs.SetMessage(&msg)
+
+	if planOnly != nil {
+		attrs.SetPlanOnly(planOnly)
+	}
+
+	wsData := models.NewWorkspacesId_data()
+	wsData.SetId(&workspaceID)
+	wsData.SetTypeEscaped(new(models.WORKSPACES_WORKSPACESID_DATA_TYPE))
+
+	wsRel := models.NewWorkspacesId()
+	wsRel.SetData(wsData)
+
+	rels := models.NewRuns_relationships()
+	rels.SetWorkspace(wsRel)
+
+	run := models.NewRuns()
+	run.SetTypeEscaped(new(models.RUNS_RUNS_TYPE))
+	run.SetAttributes(attrs)
+	run.SetRelationships(rels)
+
+	envelope := models.NewRunsEnvelope()
+	envelope.SetData(run)
+
+	return envelope
 }
