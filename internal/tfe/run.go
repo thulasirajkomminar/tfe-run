@@ -3,33 +3,28 @@ package tfe
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/go-tfe/v2"
 	"github.com/hashicorp/go-tfe/v2/api/models"
 	log "github.com/sirupsen/logrus"
 )
 
-// RunByTags triggers runs on all workspaces matching the given tags.
-func RunByTags(client *tfe.Client, org string, tags []string, planOnly *bool) error {
-	workspaces, err := ListByTags(client, org, tags)
-	if err != nil {
-		return err
+// DryRun logs the runs that would be triggered on the given workspaces,
+// without triggering anything.
+func DryRun(workspaces []Workspace) {
+	for _, ws := range workspaces {
+		log.WithFields(log.Fields{
+			"workspace": ws.Name,
+			"tags":      strings.Join(ws.Tags, ", "),
+		}).Info("Would trigger run")
 	}
 
-	return triggerRuns(client, workspaces, planOnly)
+	log.Infof("Dry run complete: %d workspace(s) would be run", len(workspaces))
 }
 
-// RunByNames triggers runs on workspaces matching the given names.
-func RunByNames(client *tfe.Client, org string, names []string, planOnly *bool) error {
-	workspaces, err := ListByNames(client, org, names)
-	if err != nil {
-		return err
-	}
-
-	return triggerRuns(client, workspaces, planOnly)
-}
-
-func triggerRuns(client *tfe.Client, workspaces []Workspace, planOnly *bool) error {
+// TriggerRuns triggers a run on each of the given workspaces.
+func TriggerRuns(client *tfe.Client, workspaces []Workspace, planOnly *bool) error {
 	ctx := context.Background()
 
 	var errCount int

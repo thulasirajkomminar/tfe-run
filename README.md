@@ -49,6 +49,20 @@ go install
 tfe-run --org myorg --tags "production,app1" --planonly true
 ```
 
+By default, only workspaces carrying **every** given tag are selected. Use `--tagmatch any` to select workspaces matching **any** of the tags:
+
+```bash
+tfe-run --org myorg --tags "production,app1" --tagmatch any
+```
+
+### Preview matching workspaces (dry run)
+
+Use `--dry-run` to see which workspaces would be selected — with their tags — without triggering any runs:
+
+```bash
+tfe-run --org myorg --tags "production,app1" --dry-run
+```
+
 ### Trigger runs by workspace names
 
 ```bash
@@ -75,8 +89,10 @@ tfe-run --tags "staging,network"
 ## Flags
 
 ```bash
+--dry-run            List the workspaces that would be run, without triggering anything
 --org string         TFE/HCP Terraform organization name (or set TFE_ORG env var)
 --tags string        Comma-separated workspace tags to filter by
+--tagmatch string    Tag matching mode: "all" (workspace has every tag) or "any" (workspace has at least one tag) (default "all")
 --workspace string   Comma-separated workspace names
 --planonly string    Plan only run: true/false (empty = workspace default)
 -h, --help           Help for tfe-run

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hashicorp/go-tfe/v2"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -16,9 +17,11 @@ import (
 
 type runOptions struct {
 	tags      string
+	tagMatch  string
 	workspace string
 	org       string
 	planOnly  string
+	dryRun    bool
 }
 
 // Execute is the main entry point for the CLI application.
@@ -48,23 +51,29 @@ Organization resolution order:
 
 	rootCmd.Flags().String("org", "", "TFE/HCP Terraform organization name (or set TFE_ORG env var)")
 	rootCmd.Flags().String("tags", "", "Comma-separated workspace tags to filter by")
+	rootCmd.Flags().String("tagmatch", "all", "Tag matching mode: all (workspace has every tag) or any (workspace has at least one tag)")
 	rootCmd.Flags().String("workspace", "", "Comma-separated workspace names")
 	rootCmd.Flags().String("planonly", "", "Plan only run: true/false (empty = workspace default)")
+	rootCmd.Flags().Bool("dry-run", false, "List the workspaces that would be run, without triggering anything")
 
 	return rootCmd.Execute()
 }
 
 func parseFlags(cmd *cobra.Command) (runOptions, error) {
 	tags, _ := cmd.Flags().GetString("tags")
+	tagMatch, _ := cmd.Flags().GetString("tagmatch")
 	workspace, _ := cmd.Flags().GetString("workspace")
 	org, _ := cmd.Flags().GetString("org")
 	planOnly, _ := cmd.Flags().GetString("planonly")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 	opts := runOptions{
 		tags:      tags,
+		tagMatch:  strings.ToLower(tagMatch),
 		workspace: workspace,
 		org:       org,
 		planOnly:  planOnly,
+		dryRun:    dryRun,
 	}
 
 	if opts.tags == "" && opts.workspace == "" {
@@ -73,6 +82,10 @@ func parseFlags(cmd *cobra.Command) (runOptions, error) {
 
 	if opts.tags != "" && opts.workspace != "" {
 		return opts, errors.New("--tags and --workspace are mutually exclusive, specify only one")
+	}
+
+	if opts.tagMatch != "any" && opts.tagMatch != "all" {
+		return opts, fmt.Errorf("invalid --tagmatch value %q: must be \"any\" or \"all\"", tagMatch)
 	}
 
 	return opts, nil
@@ -89,9 +102,12 @@ func parsePlanOnly(val string) *bool {
 }
 
 func splitAndTrim(s string) []string {
-	parts := strings.Split(s, ",")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
+	var parts []string
+
+	for p := range strings.SplitSeq(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			parts = append(parts, p)
+		}
 	}
 
 	return parts
@@ -113,13 +129,31 @@ func runCmd(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to create TFE client: %w", err)
 	}
 
-	isPlanOnly := parsePlanOnly(opts.planOnly)
-
-	if opts.tags != "" {
-		return tfeclient.RunByTags(client, resolvedOrg, splitAndTrim(opts.tags), isPlanOnly)
+	if opts.dryRun {
+		log.Info("Dry run: no runs will be triggered")
 	}
 
-	return tfeclient.RunByNames(client, resolvedOrg, splitAndTrim(opts.workspace), isPlanOnly)
+	workspaces, err := resolveWorkspaces(client, resolvedOrg, &opts)
+	if err != nil {
+		return err
+	}
+
+	if opts.dryRun {
+		tfeclient.DryRun(workspaces)
+
+		return nil
+	}
+
+	return tfeclient.TriggerRuns(client, workspaces, parsePlanOnly(opts.planOnly))
+}
+
+// resolveWorkspaces maps the CLI selection flags to the matching workspaces.
+func resolveWorkspaces(client *tfe.Client, org string, opts *runOptions) ([]tfeclient.Workspace, error) {
+	if opts.tags != "" {
+		return tfeclient.ListByTags(client, org, splitAndTrim(opts.tags), tfeclient.TagMatchMode(opts.tagMatch))
+	}
+
+	return tfeclient.ListByNames(client, org, splitAndTrim(opts.workspace))
 }
 
 func resolveOrg(org string) string {
