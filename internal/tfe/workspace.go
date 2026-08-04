@@ -13,12 +13,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	// MatchAny selects workspaces carrying at least one of the tags (union).
+	MatchAny TagMatchMode = "any"
+	// MatchAll selects workspaces carrying every tag (intersection).
+	MatchAll TagMatchMode = "all"
+)
+
 // Workspace is a lightweight view of a TFE workspace, decoupling callers from
 // the verbose kiota-generated models.
 type Workspace struct {
 	ID   string
 	Name string
+	Tags []string
 }
+
+// TagMatchMode controls how multiple tags are combined when filtering workspaces.
+type TagMatchMode string
 
 // workspacesBuilder returns the request builder for an organization's workspaces.
 func workspacesBuilder(client *tfe.Client, org string) *organizations.ItemWorkspacesRequestBuilder {
@@ -36,24 +47,31 @@ func newWorkspace(ws models.Workspacesable) Workspace {
 		w.ID = *id
 	}
 
-	if attrs := ws.GetAttributes(); attrs != nil && attrs.GetName() != nil {
-		w.Name = *attrs.GetName()
+	if attrs := ws.GetAttributes(); attrs != nil {
+		if attrs.GetName() != nil {
+			w.Name = *attrs.GetName()
+		}
+
+		w.Tags = attrs.GetTagNames()
 	}
 
 	return w
 }
 
-// ListByTags retrieves all workspaces matching the given tags.
-func ListByTags(client *tfe.Client, org string, tags []string) ([]Workspace, error) {
+// ListByTags retrieves all workspaces matching the given tags according to
+// the given match mode. Tags are matched client-side against each
+// workspace's tag names: the tag filter query parameters exposed by the
+// generated API client (filter[tagged], filter[tag-union]) are not
+// implemented by TFE/HCP Terraform and are silently ignored, which would
+// select every workspace in the organization.
+func ListByTags(client *tfe.Client, org string, tags []string, mode TagMatchMode) ([]Workspace, error) {
 	ctx := context.Background()
 
-	tagFilter := strings.Join(tags, ",")
-	log.Infof("Searching for workspaces with tags: %s", tagFilter)
+	log.Infof("Searching for workspaces matching %s of the tags: %s", mode, strings.Join(tags, ","))
 
 	config := &abstractions.RequestConfiguration[organizations.ItemWorkspacesRequestBuilderGetQueryParameters]{
 		QueryParameters: &organizations.ItemWorkspacesRequestBuilderGetQueryParameters{
-			Filtertagged: &tagFilter,
-			Pagesize:     new(int32(100)),
+			Pagesize: new(int32(100)),
 		},
 	}
 
@@ -66,7 +84,9 @@ func ListByTags(client *tfe.Client, org string, tags []string) ([]Workspace, err
 		}
 
 		for _, ws := range resp.GetData() {
-			workspaces = append(workspaces, newWorkspace(ws))
+			if w := newWorkspace(ws); matchesTags(w.Tags, tags, mode) {
+				workspaces = append(workspaces, w)
+			}
 		}
 
 		next := nextPage(resp)
@@ -78,12 +98,36 @@ func ListByTags(client *tfe.Client, org string, tags []string) ([]Workspace, err
 	}
 
 	if len(workspaces) == 0 {
-		return nil, fmt.Errorf("no workspaces found matching tags: %s", tagFilter)
+		return nil, fmt.Errorf("no workspaces found matching %s of the tags: %s", mode, strings.Join(tags, ","))
 	}
 
 	log.Infof("Found %d workspace(s) matching tags", len(workspaces))
 
 	return workspaces, nil
+}
+
+// matchesTags reports whether a workspace's tags satisfy the wanted tags
+// under the given match mode. Comparison is case-insensitive since TFE
+// stores tag names in lowercase.
+func matchesTags(have, want []string, mode TagMatchMode) bool {
+	haveSet := make(map[string]struct{}, len(have))
+	for _, t := range have {
+		haveSet[strings.ToLower(t)] = struct{}{}
+	}
+
+	matched := 0
+
+	for _, t := range want {
+		if _, ok := haveSet[strings.ToLower(t)]; ok {
+			matched++
+		}
+	}
+
+	if mode == MatchAll {
+		return matched == len(want)
+	}
+
+	return matched > 0
 }
 
 // nextPage returns the next page number from a workspace list response, or nil
