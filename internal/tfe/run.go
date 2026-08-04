@@ -74,11 +74,11 @@ func newRunEnvelope(workspaceID, msg string, planOnly *bool) models.RunsEnvelope
 		attrs.SetPlanOnly(planOnly)
 	}
 
-	wsData := models.NewWorkspacesId_data()
+	wsData := models.NewWorkspacesHasOne_data()
 	wsData.SetId(&workspaceID)
-	wsData.SetTypeEscaped(new(models.WORKSPACES_WORKSPACESID_DATA_TYPE))
+	wsData.SetTypeEscaped(new(models.WorkspacesIdentifier_type))
 
-	wsRel := models.NewWorkspacesId()
+	wsRel := models.NewWorkspacesHasOne()
 	wsRel.SetData(wsData)
 
 	rels := models.NewRuns_relationships()
