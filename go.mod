@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/hashicorp/go-tfe/v2 v2.6.0
 	github.com/microsoft/kiota-abstractions-go v1.9.4
-	github.com/sirupsen/logrus v1.10.0
+	github.com/sirupsen/logrus v1.10.2
 	github.com/spf13/cobra v1.10.2
 )
 
