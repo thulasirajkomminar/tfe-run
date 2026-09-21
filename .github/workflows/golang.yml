@@ -18,7 +18,7 @@ jobs:
           - testing-type: lint
             build-tags: integration
           - testing-type: format
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       TASK_X_REMOTE_TASKFILES: 1
     steps:
